@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Secrets & local environment
+.env
+.env.*
+!.env.example
+
+# Local editor MCP overrides (if created with hardcoded secrets)
+.vscode/mcp.json
+.mcp.local.json
+
+# SiYuan plugin build & package artifacts
+plugins/*/dist/
+plugins/*/package.zip
+*.zip
+
+# OS & temporary files
+.DS_Store
+import-issues-handoff.md

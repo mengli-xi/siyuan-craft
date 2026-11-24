@@ -1,0 +1,4 @@
+{
+  "name": "siyuan-mcp",
+  "description": "连接本地思源笔记内核 API 的工作区 MCP 服务（通过环境变量或本地 .env 读取 Token）"
+}

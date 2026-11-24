@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "siyuan": {
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "if [ -n \"$PLUGIN_ROOT\" ]; then exec \"$PLUGIN_ROOT/../../../scripts/start-siyuan-mcp.sh\"; else exec ./scripts/start-siyuan-mcp.sh; fi"
+      ]
+    }
+  }
+}
