@@ -44,6 +44,14 @@ plugins/<plugin-name>/
      - 插到父容器最前面时只传 `{ id, parentID }`，**不要传空字符串 `previousID: ""`**（内核会报 `previousID block not found`）；插到某块之后时传 `{ id, previousID, parentID }`。
    - **目录即文档模型**：
      - 思源没有纯文件夹概念，所有目录节点本身都是 `type = 'd'` 的文档，可直接承载目录导言与说明，无需额外创建 `README` 子文档。
+   - **内核 HTTP API 路由易混点**：
+     - 前端 `fetchPost` 调 SQL 查询的真实路径是 **`/api/query/sql`**（事务刷盘是 `/api/sqlite/flushTransaction`，前端重载 UI 是 `/api/ui/reloadUI`），切勿被 MCP 工具名（如 `sql.sql`）误导写成 `/api/sql/sql`（会返回 404）。
+   - **思源 `3.8+` 虚拟化文档树 (`docTree`) 与点击拦截要点**：
+     - 文档树行元素为扁平虚拟列表 `li.file-tree__row[data-type="navigation-file"][data-node-id][data-tree-key]`，展开状态挂在 `<li>` 的 **`aria-expanded="true|false"`** 上（`MutationObserver` 需监听 `attributeFilter: ["class", "aria-expanded"]`）。
+     - 监听文档树首次渲染时，除了检查 `mutation.target.closest(".sy__file")`，还必须检查 `mutation.addedNodes` 是否包含 `.sy__file` 或 `li.file-tree__row`（Dock 面板整体插入时 `target` 在 `.sy__file` 外层）。
+     - 若用户开启了原生 `fileTree.parentDocTitleClickMode = 2`，思源冒泡阶段自带约 250ms 双击等待延迟；自定义点击逻辑应在 `document` **捕获阶段 (`useCapture = true`)** 拦截分流。
+   - **Protyle 视图层扩展挂载红线**：
+     - 自定义辅助视图（如空目录卡片概览）严禁插入 `.protyle-wysiwyg` 内部，必须作为 `.protyle-wysiwyg` 的兄弟节点挂载在 `.protyle-content` 下，避免污染底层 `.sy` 文档数据。
 
 ## 三、经验回写约定
 

@@ -21,7 +21,7 @@ const SVG_DOC_DIR = `<svg data-smart-folder-svg="doc-dir" class="b3-list-item__g
 
 const SVG_CARD_DOC = `<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 2.75h6.25L15.5 6.5v10.75a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1V3.75a1 1 0 0 1 1-1Z"/><path d="M11.5 2.75V6.5h3.75M7.25 10.25h5.5M7.25 13.25h3.75"/></svg>`;
 
-const SVG_DEFAULT_RESTORE = `<svg class="b3-list-item__graphic"><use xlink:href="#iconFolder"></use></svg>`;
+const SVG_DEFAULT_RESTORE = `<svg class="b3-list-item__graphic"><use xlink:href="#iconFileText"></use></svg>`;
 
 function escapeHtml(str) {
   return String(str || "")
@@ -183,16 +183,9 @@ class SmartFolderPlugin extends siyuan.Plugin {
   }
 
   refreshDocIndex() {
-    const stmt = `
-      SELECT d.id, d.box, d.path, d.hpath, d.content AS title, d.updated, d.sort,
-             COALESCE(SUM(LENGTH(TRIM(c.markdown))), 0) AS md_len
-      FROM blocks d
-      LEFT JOIN blocks c ON c.root_id = d.id AND c.id != d.id
-      WHERE d.type = 'd'
-      GROUP BY d.id
-      LIMIT 10000
-    `;
-    siyuan.fetchPost("/api/sql/sql", { stmt }, (res) => {
+    const stmt =
+      "SELECT d.id, d.box, d.path, d.hpath, d.content AS title, d.updated, d.sort, COALESCE(SUM(LENGTH(TRIM(c.markdown))), 0) AS md_len FROM blocks d LEFT JOIN blocks c ON c.root_id = d.id AND c.id != d.id WHERE d.type = 'd' GROUP BY d.id LIMIT 10000";
+    siyuan.fetchPost("/api/query/sql", { stmt }, (res) => {
       if (!res || res.code !== 0 || !Array.isArray(res.data)) return;
       const map = new Map();
       for (const row of res.data) {
@@ -261,21 +254,43 @@ class SmartFolderPlugin extends siyuan.Plugin {
       for (const m of mutations) {
         if (m.type === "attributes") {
           const el = m.target;
-          if (el && el.classList && el.classList.contains("b3-list-item__arrow")) {
+          if (
+            el &&
+            ((el.classList &&
+              (el.classList.contains("b3-list-item__arrow") ||
+                el.classList.contains("file-tree__row"))) ||
+              el.hasAttribute?.("data-tree-key"))
+          ) {
             relevant = true;
             break;
           }
         } else if (m.type === "childList") {
           const t = m.target;
+          if (t && t.classList && t.classList.contains("b3-list-item__icon")) {
+            continue;
+          }
           if (
             t &&
             t.closest &&
             t.closest('.sy__file, [data-type="sidebar-file"], .file-tree__pins')
           ) {
-            // Ignore mutations caused by our own SVG icon replacement
-            if (t.classList && t.classList.contains("b3-list-item__icon")) continue;
             relevant = true;
             break;
+          }
+          if (m.addedNodes && m.addedNodes.length > 0) {
+            for (const node of m.addedNodes) {
+              if (
+                node instanceof Element &&
+                (node.matches?.(
+                  '.sy__file, [data-type="sidebar-file"], .file-tree__pins, li.file-tree__row'
+                ) ||
+                  node.querySelector?.("li.file-tree__row"))
+              ) {
+                relevant = true;
+                break;
+              }
+            }
+            if (relevant) break;
           }
         }
       }
@@ -292,11 +307,13 @@ class SmartFolderPlugin extends siyuan.Plugin {
       subtree: true,
       childList: true,
       attributes: true,
-      attributeFilter: ["class"],
+      attributeFilter: ["class", "aria-expanded"],
     });
   }
 
-  isRowExpanded(toggleEl) {
+  isRowExpanded(li, toggleEl) {
+    if (li && li.getAttribute("aria-expanded") === "true") return true;
+    if (li && li.getAttribute("aria-expanded") === "false") return false;
     if (!toggleEl) return false;
     const arrow = toggleEl.querySelector(".b3-list-item__arrow");
     return !!(arrow && arrow.classList.contains("b3-list-item__arrow--open"));
@@ -330,7 +347,7 @@ class SmartFolderPlugin extends siyuan.Plugin {
     }
 
     const isEmpty = meta ? meta.isEmpty : false;
-    const expanded = this.isRowExpanded(toggleEl);
+    const expanded = this.isRowExpanded(li, toggleEl);
     const folderState = isEmpty ? (expanded ? "empty-dir-open" : "empty-dir") : "doc-dir";
 
     if (li.getAttribute("data-smart-folder") !== folderState) {
@@ -402,9 +419,28 @@ class SmartFolderPlugin extends siyuan.Plugin {
     if (!hasSubDocs) return;
 
     const meta = this.docMeta.get(docId);
-    // Only intercept 0-char pure folders; content-bearing parent docs open normally!
-    if (!meta || !meta.isEmpty) return;
+    if (!meta) return;
 
+    // Content-bearing parent docs: always open immediately on single click,
+    // even if SiYuan's native parentDocTitleClickMode is set to 1 or 2!
+    if (!meta.isEmpty) {
+      const nativeMode =
+        window.siyuan &&
+        window.siyuan.config &&
+        window.siyuan.config.fileTree &&
+        window.siyuan.config.fileTree.parentDocTitleClickMode;
+      if (nativeMode && nativeMode !== 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        siyuan.openTab({
+          app: this.app,
+          doc: { id: docId },
+        });
+      }
+      return;
+    }
+
+    // 0-char pure folders: 0ms instant expand/collapse on single-click, open tab on double-click!
     e.preventDefault();
     e.stopPropagation();
 
@@ -415,7 +451,7 @@ class SmartFolderPlugin extends siyuan.Plugin {
 
     if (isDoubleClick) {
       // Keep folder expanded if the preceding single-click just collapsed it
-      const currentlyExpanded = this.isRowExpanded(toggleEl);
+      const currentlyExpanded = this.isRowExpanded(li, toggleEl);
       if (this.lastFolderClick.wasExpanded && !currentlyExpanded) {
         toggleEl.click();
       }
@@ -427,7 +463,7 @@ class SmartFolderPlugin extends siyuan.Plugin {
       return;
     }
 
-    const wasExpanded = this.isRowExpanded(toggleEl);
+    const wasExpanded = this.isRowExpanded(li, toggleEl);
     this.lastFolderClick = { id: docId, ts: now, wasExpanded };
     toggleEl.click();
   }

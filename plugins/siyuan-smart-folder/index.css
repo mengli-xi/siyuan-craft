@@ -5,7 +5,7 @@
 :root {
   --smart-folder-amber: #d9822b;
   --smart-folder-amber-soft: rgba(217, 130, 43, 0.14);
-  --smart-folder-docdir: var(--b3-theme-primary, #3b82f6);
+  --smart-folder-docdir: #2563eb;
   --smart-folder-card-bg: var(--b3-theme-surface, rgba(128, 128, 128, 0.05));
   --smart-folder-card-hover: var(--b3-list-hover, rgba(128, 128, 128, 0.1));
   --smart-folder-border: var(--b3-border-color, rgba(128, 128, 128, 0.16));
@@ -14,6 +14,7 @@
 html[data-theme-mode="dark"] {
   --smart-folder-amber: #f0a44c;
   --smart-folder-amber-soft: rgba(240, 164, 76, 0.18);
+  --smart-folder-docdir: #60a5fa;
 }
 
 /* 1. File Tree Visual Distinction */
@@ -25,7 +26,7 @@ li.file-tree__row[data-smart-folder="empty-dir-open"] > .b3-list-item__text {
 
 li.file-tree__row[data-smart-folder="empty-dir"] > .b3-list-item__icon svg[data-smart-folder-svg],
 li.file-tree__row[data-smart-folder="empty-dir-open"] > .b3-list-item__icon svg[data-smart-folder-svg] {
-  color: var(--smart-folder-amber);
+  color: var(--smart-folder-amber) !important;
   width: 15px;
   height: 15px;
   flex-shrink: 0;
@@ -33,7 +34,7 @@ li.file-tree__row[data-smart-folder="empty-dir-open"] > .b3-list-item__icon svg[
 }
 
 li.file-tree__row[data-smart-folder="doc-dir"] > .b3-list-item__icon svg[data-smart-folder-svg] {
-  color: var(--smart-folder-docdir);
+  color: var(--smart-folder-docdir) !important;
   width: 15px;
   height: 15px;
   flex-shrink: 0;

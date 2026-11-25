@@ -4,3 +4,7 @@
 
 - 详细的原理推导、接口实验与方案设计按主题放在本目录下；
 - 提炼出的简明防坑规则同步写回 [`.agents/skills/siyuan-plugin-dev/SKILL.md`](../.agents/skills/siyuan-plugin-dev/SKILL.md)，方便 AI 写代码时直接生效。
+
+## 文档索引
+
+- [思源 `3.8.x` 文档树机制与插件开发踩坑实录](./siyuan-3.8-doctree-and-plugin-pitfalls.md)
