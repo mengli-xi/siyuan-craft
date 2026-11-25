@@ -23,6 +23,35 @@ const SVG_CARD_DOC = `<svg width="16" height="16" viewBox="0 0 20 20" fill="none
 
 const SVG_DEFAULT_RESTORE = `<svg class="b3-list-item__graphic"><use xlink:href="#iconFileText"></use></svg>`;
 
+function unicodeHexToChar(code) {
+  if (!code || typeof code !== "string") return "";
+  try {
+    const parts = code
+      .trim()
+      .split("-")
+      .map((h) => parseInt(h, 16))
+      .filter((n) => !Number.isNaN(n));
+    return parts.length > 0 ? String.fromCodePoint(...parts) : "";
+  } catch {
+    return "";
+  }
+}
+
+function getDefaultIconEmojis() {
+  const defaults = new Set(["📑", "📄"]);
+  const localImages =
+    window.siyuan &&
+    window.siyuan.storage &&
+    window.siyuan.storage["local-images"];
+  if (localImages) {
+    const folderChar = unicodeHexToChar(localImages.folder);
+    const fileChar = unicodeHexToChar(localImages.file);
+    if (folderChar) defaults.add(folderChar);
+    if (fileChar) defaults.add(fileChar);
+  }
+  return defaults;
+}
+
 function escapeHtml(str) {
   return String(str || "")
     .replace(/&/g, "&amp;")
@@ -176,7 +205,8 @@ class SmartFolderPlugin extends siyuan.Plugin {
       cmd === "rename" ||
       cmd === "moveDoc" ||
       cmd === "mount" ||
-      cmd === "unmount"
+      cmd === "unmount" ||
+      cmd === "setAttr"
     ) {
       this.scheduleIndexRefresh(320);
     }
@@ -184,7 +214,7 @@ class SmartFolderPlugin extends siyuan.Plugin {
 
   refreshDocIndex() {
     const stmt =
-      "SELECT d.id, d.box, d.path, d.hpath, d.content AS title, d.updated, d.sort, COALESCE(SUM(LENGTH(TRIM(c.markdown))), 0) AS md_len FROM blocks d LEFT JOIN blocks c ON c.root_id = d.id AND c.id != d.id WHERE d.type = 'd' GROUP BY d.id LIMIT 10000";
+      "SELECT d.id, d.box, d.path, d.hpath, d.content AS title, d.ial, d.updated, d.sort, COALESCE(SUM(LENGTH(TRIM(c.markdown))), 0) AS md_len FROM blocks d LEFT JOIN blocks c ON c.root_id = d.id AND c.id != d.id WHERE d.type = 'd' GROUP BY d.id LIMIT 10000";
     siyuan.fetchPost("/api/query/sql", { stmt }, (res) => {
       if (!res || res.code !== 0 || !Array.isArray(res.data)) return;
       const map = new Map();
@@ -196,6 +226,7 @@ class SmartFolderPlugin extends siyuan.Plugin {
           path: row.path || "",
           hpath: row.hpath || "",
           title: row.content || row.title || "未命名",
+          hasCustomIcon: /\bicon="[^"]+"/.test(row.ial || ""),
           updated: row.updated || "",
           sort: Number(row.sort || 0),
           mdLen,
@@ -339,9 +370,7 @@ class SmartFolderPlugin extends siyuan.Plugin {
       if (li.hasAttribute("data-smart-folder")) {
         li.removeAttribute("data-smart-folder");
         const iconSpan = li.querySelector(":scope > .b3-list-item__icon");
-        if (iconSpan && iconSpan.querySelector("svg[data-smart-folder-svg]")) {
-          iconSpan.innerHTML = `<svg class="b3-list-item__graphic"><use xlink:href="#${hasChildren ? "iconFolder" : "iconFile"}"></use></svg>`;
-        }
+        this.restoreIconSpan(iconSpan, hasChildren);
       }
       return;
     }
@@ -357,13 +386,29 @@ class SmartFolderPlugin extends siyuan.Plugin {
     const iconSpan = li.querySelector(":scope > .b3-list-item__icon");
     if (!iconSpan) return;
 
-    // Preserve user custom emoji (text node without svg) or custom img icon
+    // Preserve user custom icon (via ial icon attr, custom img, or non-default emoji text)
+    if (meta && meta.hasCustomIcon) {
+      this.restoreIconSpan(iconSpan, hasChildren);
+      return;
+    }
     if (iconSpan.querySelector("img")) return;
-    const existingSvg = iconSpan.querySelector("svg");
-    if (!existingSvg) return;
 
+    const existingOurSvg = iconSpan.querySelector("svg[data-smart-folder-svg]");
     const desiredSvgType = isEmpty ? (expanded ? "open" : "closed") : "doc-dir";
-    if (existingSvg.getAttribute("data-smart-folder-svg") === desiredSvgType) return;
+    if (existingOurSvg) {
+      if (existingOurSvg.getAttribute("data-smart-folder-svg") === desiredSvgType) return;
+    } else {
+      const existingSvg = iconSpan.querySelector("svg");
+      if (!existingSvg) {
+        // When fileTree.useSVGDefaultIcon is false, SiYuan renders default folder/file emoji text (📑/📄).
+        // Replace only if the text is empty or one of SiYuan's default emojis; preserve user custom emojis.
+        const text = (iconSpan.textContent || "").trim();
+        if (text && !getDefaultIconEmojis().has(text)) return;
+      }
+      if (!iconSpan.hasAttribute("data-smart-folder-orig")) {
+        iconSpan.setAttribute("data-smart-folder-orig", iconSpan.innerHTML);
+      }
+    }
 
     iconSpan.innerHTML =
       desiredSvgType === "open"
@@ -373,15 +418,25 @@ class SmartFolderPlugin extends siyuan.Plugin {
         : SVG_DOC_DIR;
   }
 
+  restoreIconSpan(iconSpan, hasChildren = true) {
+    if (!iconSpan || !iconSpan.querySelector("svg[data-smart-folder-svg]")) return;
+    if (iconSpan.hasAttribute("data-smart-folder-orig")) {
+      iconSpan.innerHTML = iconSpan.getAttribute("data-smart-folder-orig") || "";
+      iconSpan.removeAttribute("data-smart-folder-orig");
+    } else {
+      iconSpan.innerHTML = hasChildren
+        ? SVG_DEFAULT_RESTORE
+        : `<svg class="b3-list-item__graphic"><use xlink:href="#iconFile"></use></svg>`;
+    }
+  }
+
   restoreAllTreeIcons() {
     document
       .querySelectorAll("li.file-tree__row[data-smart-folder]")
       .forEach((li) => {
         li.removeAttribute("data-smart-folder");
         const iconSpan = li.querySelector(":scope > .b3-list-item__icon");
-        if (iconSpan && iconSpan.querySelector("svg[data-smart-folder-svg]")) {
-          iconSpan.innerHTML = SVG_DEFAULT_RESTORE;
-        }
+        this.restoreIconSpan(iconSpan, true);
       });
   }
 

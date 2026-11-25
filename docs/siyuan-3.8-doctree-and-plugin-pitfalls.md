@@ -51,3 +51,13 @@
 
 - **红线**：切勿向 `.protyle-wysiwyg` 内部直接插入非标准块 DOM（Protyle 编辑器的输入与序列化观察器会将其视作文档内容甚至污染 `.sy` 文件）。
 - **正确做法**：将自定义概览面板（如 `.smart-folder-overview`）挂载在 `.protyle-content` 内、作为 `.protyle-wysiwyg` 的**前序兄弟节点**，并通过 `ResizeObserver` 同步 `.protyle-title` / `.protyle-wysiwyg` 的左右边距以保持版心对齐。
+
+---
+
+## 6. 文档树默认图标双模式坑：`fileTree.useSVGDefaultIcon`
+
+- **现象**：部分工作空间开启了「使用 SVG 默认图标」（`useSVGDefaultIcon: true`），此时未设自定义图标的文档 `.b3-list-item__icon` 内为 `<svg>`；但思源默认配置为 **`useSVGDefaultIcon: false`**，此时 `.b3-list-item__icon` 内渲染的是 **Unicode Emoji 文本节点**（`📑` / `📄`，或 `window.siyuan.storage["local-images"]` 中的默认映射），并不存在 `<svg>`。
+- **根因**：如果插件用 `if (!iconSpan.querySelector("svg")) return;` 来区分“默认图标 vs 用户自定义 Emoji”，在 `useSVGDefaultIcon: false` 的工作空间里会把所有默认图标全部跳过。
+- **正确做法**：
+  1. SQL 查询中顺带读取 `d.ial`，通过 `/\bicon="[^"]+"/` 判断文档是否设置了自定义图标；
+  2. DOM 层同时兼容 `<svg>` 与默认 Emoji 文本（`📑` / `📄` 及 `local-images` 默认值），并在替换前将原始 `innerHTML` 暂存在 `data-*` 属性中，卸载或禁用时原样恢复。

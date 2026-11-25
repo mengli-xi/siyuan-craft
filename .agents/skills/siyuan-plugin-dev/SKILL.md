@@ -49,6 +49,7 @@ plugins/<plugin-name>/
    - **思源 `3.8+` 虚拟化文档树 (`docTree`) 与点击拦截要点**：
      - 文档树行元素为扁平虚拟列表 `li.file-tree__row[data-type="navigation-file"][data-node-id][data-tree-key]`，展开状态挂在 `<li>` 的 **`aria-expanded="true|false"`** 上（`MutationObserver` 需监听 `attributeFilter: ["class", "aria-expanded"]`）。
      - 监听文档树首次渲染时，除了检查 `mutation.target.closest(".sy__file")`，还必须检查 `mutation.addedNodes` 是否包含 `.sy__file` 或 `li.file-tree__row`（Dock 面板整体插入时 `target` 在 `.sy__file` 外层）。
+     - **默认图标双模式坑（`fileTree.useSVGDefaultIcon`）**：思源默认 `useSVGDefaultIcon: false` 时，`.b3-list-item__icon` 内为默认 Unicode Emoji 文本（`📑`/`📄`）而非 `<svg>`；严禁仅凭“无 `<svg>`”判断为用户自定义图标，应结合 SQL `d.ial` 的 `icon="..."` 属性与默认 Emoji 集合判定，并在替换前暂存原始 `innerHTML` 以便精准还原。
      - 若用户开启了原生 `fileTree.parentDocTitleClickMode = 2`，思源冒泡阶段自带约 250ms 双击等待延迟；自定义点击逻辑应在 `document` **捕获阶段 (`useCapture = true`)** 拦截分流。
    - **Protyle 视图层扩展挂载红线**：
      - 自定义辅助视图（如空目录卡片概览）严禁插入 `.protyle-wysiwyg` 内部，必须作为 `.protyle-wysiwyg` 的兄弟节点挂载在 `.protyle-content` 下，避免污染底层 `.sy` 文档数据。
