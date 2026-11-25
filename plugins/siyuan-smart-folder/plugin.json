@@ -1,0 +1,36 @@
+{
+  "name": "siyuan-smart-folder",
+  "author": "li",
+  "url": "https://github.com/mengli-xi/siyuan-craft",
+  "version": "1.0.0",
+  "minAppVersion": "3.8.0",
+  "backends": [
+    "all"
+  ],
+  "frontends": [
+    "all"
+  ],
+  "disabledInPublish": true,
+  "settingsWindow": true,
+  "displayName": {
+    "default": "Smart Folder",
+    "zh-CN": "智能目录"
+  },
+  "description": {
+    "default": "Smart folder UX for 0-char parent docs: single-click expand/collapse, distinct folder icons, and non-destructive directory overview cards.",
+    "zh-CN": "智能区分 0 字纯目录与有正文的父文档：纯目录单击展开/折叠（双击或 Option+单击打开）、专属文件夹图标视觉区分、打开空目录页自动渲染子文档卡片概览（不修改原文件）。"
+  },
+  "readme": {
+    "default": "README.md",
+    "zh-CN": "README_zh_CN.md"
+  },
+  "keywords": [
+    "folder",
+    "filetree",
+    "directory",
+    "overview",
+    "目录",
+    "文档树",
+    "文件夹"
+  ]
+}
