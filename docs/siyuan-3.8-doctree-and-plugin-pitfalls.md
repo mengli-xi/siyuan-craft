@@ -27,14 +27,12 @@
 
 ---
 
-## 3. 原生 `parentDocTitleClickMode = 2` 的 250ms 单击延迟与捕获阶段分流
+## 3. 原生 `parentDocTitleClickMode = 2` 的 250ms 单击延迟与捕获阶段拦截
 
-- **现象**：当用户在「设置 -> 文档树 -> 行为 -> 父文档标题点击动作」中开启了 `2`（单击展开/折叠，双击打开）时：
-  1. 单击任意目录都会有明显的 **~250ms 延迟**（思源内置 `parentDocClick` 需要等待双击窗口期超时后才执行展开）；
-  2. 含有导言正文的父文档（如 `00-未归纳`、`01-编程`）也会被一刀切拦截为折叠操作，无法单击直接阅读正文。
-- **解决方案**：在 `document.addEventListener("click", handler, true)`（**捕获阶段**）接管分流：
-  - 对 **0 字纯目录**：`preventDefault() + stopPropagation()` 后立即触发 `.b3-list-item__toggle` 点击，实现 **0ms 零延迟展开/收起**；若 340ms 内检测到同节点第二次点击（双击），自动补偿展开状态并调用 `openTab` 打开目录页。
-  - 对 **含正文的父文档**：若检测到 `window.siyuan.config.fileTree.parentDocTitleClickMode !== 0`，同样在捕获阶段拦截并直接调用 `openTab`，避免落入原生 `parentDocClick` 的延迟折叠逻辑。
+- **现象**：当用户在「设置 -> 文档树 -> 行为 -> 父文档标题点击动作」中开启了 `2`（单击展开/折叠，双击打开）时，单击任意父目录都会有明显的 **~250ms 延迟**（思源内置 `parentDocClick` 需要等待双击窗口期超时后才执行展开）。
+- **解决方案**：在 `document.addEventListener("click", handler, true)`（**捕获阶段**）接管点击事件：
+  - 对**所有父目录节点**（无论纯目录还是含正文父文档）：`preventDefault() + stopPropagation()` 后立即触发 `.b3-list-item__toggle` 点击，实现 **0ms 零延迟展开/收起**；
+  - 若 340ms 内检测到同节点第二次点击（**双击**），自动回补展开状态并调用 `openTab` 打开对应目录页（或直接使用 **`Option/Alt + 单击`** 直接打开目录页而不改变折叠状态）。
 
 ---
 
@@ -61,3 +59,16 @@
 - **正确做法**：
   1. SQL 查询中顺带读取 `d.ial`，通过 `/\bicon="[^"]+"/` 判断文档是否设置了自定义图标；
   2. DOM 层同时兼容 `<svg>` 与默认 Emoji 文本（`📑` / `📄` 及 `local-images` 默认值），并在替换前将原始 `innerHTML` 暂存在 `data-*` 属性中，卸载或禁用时原样恢复。
+
+---
+
+## 7. 插件更新检查机制与多端同步 `push_reload` 自动热重载
+
+1. **集市插件（Bazaar）更新机制**：
+   - 思源启动或在「设置 -> 集市 -> 已下载」检查更新时，会拉取官方 `siyuan-note/bazaar` 索引清单，比对本地 `data/storage/bazaar.json` 中的 `repoRef` 与插件 `plugin.json` 的 `version`；下载更新时拉取的是对应仓库 GitHub Release 构建产物 **`package.zip`**，不会直接拉取源码分支。
+   - **未上架集市的自研插件**不会向 GitHub 轮询检查更新。
+2. **多端同步与 `push_reload` 自动热重载**：
+   - 思源的数据仓库同步（官方云端 / WebDAV / S3）默认将 `<SiYuanWorkspace>/data/plugins/` 纳入同步范围。
+   - 在思源 `3.8+` 中，任一设备直接修改 `data/plugins/<plugin-name>/` 并触发同步后，另一端内核的 `push_reload` 机制会在同步落盘时检测到插件文件哈希变化，**自动通知前端热重载受影响的插件**，无需重启思源。
+3. **跨平台开发防坑提示**：
+   - 若在多台设备（如 Windows + macOS）上直接热改工作空间 `data/plugins/`，很容易出现「运行态代码比 Git 仓库更新」或 Windows CRLF 换行符带入仓库的情况；回收改动回 Git 仓库前务必对比两边时间戳并统一规整为 LF 换行符。

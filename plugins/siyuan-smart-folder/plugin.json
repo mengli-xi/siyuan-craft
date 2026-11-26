@@ -17,8 +17,8 @@
     "zh-CN": "智能目录"
   },
   "description": {
-    "default": "Smart folder UX for 0-char parent docs: single-click expand/collapse, distinct folder icons, and non-destructive directory overview cards.",
-    "zh-CN": "智能区分 0 字纯目录与有正文的父文档：纯目录单击展开/折叠（双击或 Option+单击打开）、专属文件夹图标视觉区分、打开空目录页自动渲染子文档卡片概览（不修改原文件）。"
+    "default": "Smart folder UX for parent docs: single-click expand/collapse, double-click to open, distinct folder icons, and non-destructive directory overview cards.",
+    "zh-CN": "文档树目录增强：所有目录统一单击展开/折叠、双击（或 Option/Alt+单击）进入目录本身；区分 0 字纯目录与含正文父文档图标；打开空目录页自动渲染子文档卡片概览（不修改原文件）。"
   },
   "readme": {
     "default": "README.md",

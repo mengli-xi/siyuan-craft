@@ -169,8 +169,8 @@ class SmartFolderPlugin extends siyuan.Plugin {
     };
 
     this.setting.addItem({
-      title: "智能单击空目录",
-      description: "0 字纯目录单击仅展开/折叠子文档（双击或按住 Option/Alt 单击可打开目录页）；含正文的父文档仍正常单击打开。",
+      title: "目录单击展开 / 双击打开",
+      description: "所有目录（含子文档的父节点）统一单击展开/折叠，双击或按住 Option/Alt 单击打开目录本身。",
       createActionElement: () => makeCheckbox("smartClick"),
     });
 
@@ -441,7 +441,7 @@ class SmartFolderPlugin extends siyuan.Plugin {
   }
 
   onCaptureClick(e) {
-    if (!this.settings.smartClick || !this.indexLoaded) return;
+    if (!this.settings.smartClick) return;
     if (!e.isTrusted || e.button !== 0) return;
     // Allow Option/Alt + Click (or Cmd/Ctrl/Shift) to bypass interception
     if (e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return;
@@ -473,29 +473,7 @@ class SmartFolderPlugin extends siyuan.Plugin {
     const hasSubDocs = !!(toggleEl && !toggleEl.classList.contains("fn__hidden"));
     if (!hasSubDocs) return;
 
-    const meta = this.docMeta.get(docId);
-    if (!meta) return;
-
-    // Content-bearing parent docs: always open immediately on single click,
-    // even if SiYuan's native parentDocTitleClickMode is set to 1 or 2!
-    if (!meta.isEmpty) {
-      const nativeMode =
-        window.siyuan &&
-        window.siyuan.config &&
-        window.siyuan.config.fileTree &&
-        window.siyuan.config.fileTree.parentDocTitleClickMode;
-      if (nativeMode && nativeMode !== 0) {
-        e.preventDefault();
-        e.stopPropagation();
-        siyuan.openTab({
-          app: this.app,
-          doc: { id: docId },
-        });
-      }
-      return;
-    }
-
-    // 0-char pure folders: 0ms instant expand/collapse on single-click, open tab on double-click!
+    // All parent directories: 0ms instant expand/collapse on single-click, open directory doc on double-click!
     e.preventDefault();
     e.stopPropagation();
 

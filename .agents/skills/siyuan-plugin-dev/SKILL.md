@@ -53,6 +53,9 @@ plugins/<plugin-name>/
      - 若用户开启了原生 `fileTree.parentDocTitleClickMode = 2`，思源冒泡阶段自带约 250ms 双击等待延迟；自定义点击逻辑应在 `document` **捕获阶段 (`useCapture = true`)** 拦截分流。
    - **Protyle 视图层扩展挂载红线**：
      - 自定义辅助视图（如空目录卡片概览）严禁插入 `.protyle-wysiwyg` 内部，必须作为 `.protyle-wysiwyg` 的兄弟节点挂载在 `.protyle-content` 下，避免污染底层 `.sy` 文档数据。
+   - **插件更新机制与多端同步热重载（`push_reload`）**：
+     - 集市插件仅比对官方 `bazaar` 索引与 GitHub Release `package.zip`，未上架的自研插件不会自动检查 GitHub 分支更新；
+     - 但思源数据同步（WebDAV/云端）会自动同步 `data/plugins/<plugin-name>/`，且思源 `3.8+` 内核 `push_reload` 在同步检测到插件文件变动后会自动热重载前端插件。多端（Windows/macOS）联调回收代码至 Git 仓库前，需先对比 `data/plugins/` 是否有更新改动并统一规整 CRLF 为 LF。
 
 ## 三、经验回写约定
 
