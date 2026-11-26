@@ -72,3 +72,16 @@
    - 在思源 `3.8+` 中，任一设备直接修改 `data/plugins/<plugin-name>/` 并触发同步后，另一端内核的 `push_reload` 机制会在同步落盘时检测到插件文件哈希变化，**自动通知前端热重载受影响的插件**，无需重启思源。
 3. **跨平台开发防坑提示**：
    - 若在多台设备（如 Windows + macOS）上直接热改工作空间 `data/plugins/`，很容易出现「运行态代码比 Git 仓库更新」或 Windows CRLF 换行符带入仓库的情况；回收改动回 Git 仓库前务必对比两边时间戳并统一规整为 LF 换行符。
+
+---
+
+## 8. 思源 `3.8+` 右键菜单顶层挂载与 `entryVisibility` 重排坑
+
+1. **`detail.menu` 默认会被折叠进二级「插件」菜单**：
+   - 在 `open-menu-doctree`、`click-editortitleicon`、`open-menu-breadcrumbmore` 等菜单事件中，`ev.detail.menu` 实际上是一个 `subMenu` 收集器；往 `ev.detail.menu.addItem(...)` 添加的条目会被统一塞进菜单底部的 **`插件 >`（`iconPlugin`）二级菜单**，高频操作（如「复制路径」）需要多悬停一层。
+2. **挂载到一级菜单并紧跟原生「复制」项的做法**：
+   - 事件触发时，主菜单 `window.siyuan.menus.menu` 已完成原生条目构建。直接调用 `const itemEl = window.siyuan.menus.menu.addItem(options)` 即可挂载为一级菜单项（且弹窗高度测量会将其计入）。
+   - **关键坑点**：思源 `3.8+` 新增了 `appearance.entryVisibility`（菜单项显隐与排序管理），在事件结束后的同步 `menu.popup()` 阶段会按内置键序重排 `.b3-menu__items`，把未知 `data-id` 的自定义项挤到菜单末尾。
+   - **解决方案**：在同步执行一次 `copyEl.after(itemEl)` 后，再用 **`queueMicrotask`** 补一次重排定位，即可在浏览器首帧绘制前将菜单项稳稳固定在 `[data-id="copy"]` 正下方。
+3. **`MenuItem` 同时支持主项左键点击与悬停子菜单**：
+   - 思源 `MenuItem` 支持在同一配置对象中同时声明 `click` 与 `submenu`（子菜单项点击自带 `stopPropagation()`，主项 `click` 内再加 `event.target.closest(".b3-menu__submenu")` 守卫即可），适合实现「左键一键复制默认格式 + 悬停子菜单选择其他格式」。

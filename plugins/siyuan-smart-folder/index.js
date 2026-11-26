@@ -10,6 +10,7 @@ const DEFAULT_SETTINGS = {
   smartClick: true,
   folderIcon: true,
   overviewCard: true,
+  copyPathMenu: true,
 };
 
 // Crisp SVGs for tree items & overview cards
@@ -86,6 +87,8 @@ class SmartFolderPlugin extends siyuan.Plugin {
     this.boundCaptureClick = this.onCaptureClick.bind(this);
     this.boundProtyleEvent = this.onProtyleEvent.bind(this);
     this.boundWsEvent = this.onWsEvent.bind(this);
+    this.boundDocTreeMenu = this.onDocTreeMenu.bind(this);
+    this.boundEditorMenu = this.onEditorMenu.bind(this);
 
     this.settingInputs = {};
     this.initSettingPanel();
@@ -95,6 +98,9 @@ class SmartFolderPlugin extends siyuan.Plugin {
     this.eventBus.on("loaded-protyle-static", this.boundProtyleEvent);
     this.eventBus.on("switch-protyle", this.boundProtyleEvent);
     this.eventBus.on("ws-main", this.boundWsEvent);
+    this.eventBus.on("open-menu-doctree", this.boundDocTreeMenu);
+    this.eventBus.on("click-editortitleicon", this.boundEditorMenu);
+    this.eventBus.on("open-menu-breadcrumbmore", this.boundEditorMenu);
   }
 
   onDataChanged() {
@@ -128,6 +134,9 @@ class SmartFolderPlugin extends siyuan.Plugin {
     this.eventBus.off("loaded-protyle-static", this.boundProtyleEvent);
     this.eventBus.off("switch-protyle", this.boundProtyleEvent);
     this.eventBus.off("ws-main", this.boundWsEvent);
+    this.eventBus.off("open-menu-doctree", this.boundDocTreeMenu);
+    this.eventBus.off("click-editortitleicon", this.boundEditorMenu);
+    this.eventBus.off("open-menu-breadcrumbmore", this.boundEditorMenu);
 
     if (this.treeObserver) {
       this.treeObserver.disconnect();
@@ -184,6 +193,12 @@ class SmartFolderPlugin extends siyuan.Plugin {
       title: "空目录页自动展示卡片概览",
       description: "通过双击或面包屑进入 0 字纯目录页时，自动渲染子目录与子笔记卡片列表（不改动底层 .sy 文档数据）。",
       createActionElement: () => makeCheckbox("overviewCard"),
+    });
+
+    this.setting.addItem({
+      title: "右键菜单「复制路径」",
+      description: "在文档树右键菜单与编辑器标题菜单中添加「复制路径」，一键复制「笔记本/可读路径」，悬停子菜单可复制带文档 ID 或底层 .sy 路径。",
+      createActionElement: () => makeCheckbox("copyPathMenu"),
     });
   }
 
@@ -759,6 +774,309 @@ class SmartFolderPlugin extends siyuan.Plugin {
     document
       .querySelectorAll(".protyle-content.smart-folder-hiding-wysiwyg")
       .forEach((el) => el.classList.remove("smart-folder-hiding-wysiwyg"));
+  }
+
+  getNotebookName(notebookId) {
+    if (!notebookId) return "";
+    const list =
+      window.siyuan && Array.isArray(window.siyuan.notebooks)
+        ? window.siyuan.notebooks
+        : [];
+    const found = list.find((n) => n && n.id === notebookId);
+    return (found && found.name) || notebookId;
+  }
+
+  onDocTreeMenu(ev) {
+    if (!this.settings.copyPathMenu) return;
+    const detail = (ev && ev.detail) || {};
+    const targets = [];
+    const seen = new Set();
+
+    const pushTarget = (t) => {
+      if (!t) return;
+      const key = `${t.kind}:${t.id || t.notebookId}`;
+      if (!t.id && !t.notebookId) return;
+      if (seen.has(key)) return;
+      seen.add(key);
+      targets.push(t);
+    };
+
+    if (Array.isArray(detail.items) && detail.items.length > 0) {
+      for (const item of detail.items) {
+        if (!item) continue;
+        const isNb =
+          item.kind === "notebook" ||
+          detail.type === "notebook" ||
+          detail.type === "notebooks" ||
+          (item.id && item.notebookId && item.id === item.notebookId);
+        if (isNb) {
+          const nbId = item.notebookId || item.id || "";
+          pushTarget({
+            kind: "notebook",
+            id: nbId,
+            notebookId: nbId,
+            syPath: "/",
+            name: item.name || "",
+          });
+        } else if (item.id) {
+          pushTarget({
+            kind: "doc",
+            id: item.id,
+            notebookId: item.notebookId || "",
+            syPath: item.path || "",
+            name: item.name || "",
+          });
+        }
+      }
+    }
+
+    if (targets.length === 0 && detail.elements) {
+      const els = Array.from(detail.elements);
+      for (const el of els) {
+        if (!(el instanceof Element)) continue;
+        const dataType = el.getAttribute("data-type") || "";
+        const docId = el.getAttribute("data-node-id") || "";
+        const ulNb = el.closest("ul[data-url]");
+        const nbId =
+          el.getAttribute("data-url") ||
+          (ulNb ? ulNb.getAttribute("data-url") : "") ||
+          "";
+        if (dataType === "navigation-root" || (!docId && nbId)) {
+          pushTarget({
+            kind: "notebook",
+            id: nbId,
+            notebookId: nbId,
+            syPath: "/",
+            name: "",
+          });
+        } else if (docId) {
+          pushTarget({
+            kind: "doc",
+            id: docId,
+            notebookId: nbId,
+            syPath: el.getAttribute("data-path") || "",
+            name: "",
+          });
+        }
+      }
+    }
+
+    if (targets.length === 0) return;
+    this.mountCopyPathMenuItem(targets, detail.menu);
+  }
+
+  onEditorMenu(ev) {
+    if (!this.settings.copyPathMenu) return;
+    const detail = (ev && ev.detail) || {};
+    const protyle = detail.protyle || {};
+    const rootID =
+      (protyle.block && protyle.block.rootID) ||
+      (detail.data && (detail.data.id || detail.data.rootID)) ||
+      "";
+    if (!rootID) return;
+    const targets = [
+      {
+        kind: "doc",
+        id: rootID,
+        notebookId: protyle.notebookId || "",
+        syPath: protyle.path || "",
+        name: "",
+      },
+    ];
+    this.mountCopyPathMenuItem(targets, detail.menu);
+  }
+
+  mountCopyPathMenuItem(targets, detailMenu) {
+    const itemOptions = {
+      id: "smartFolderCopyPath",
+      icon: "iconCopy",
+      label: targets.length > 1 ? `复制路径 (${targets.length})` : "复制路径",
+      click: (_el, event) => {
+        if (
+          event &&
+          event.target instanceof Element &&
+          event.target.closest(".b3-menu__submenu")
+        ) {
+          return true;
+        }
+        this.copyTargets(targets, "full");
+      },
+      submenu: [
+        {
+          id: "smartFolderCopyFullPath",
+          iconHTML: "",
+          label: "笔记本 + 可读路径（默认）",
+          click: () => this.copyTargets(targets, "full"),
+        },
+        {
+          id: "smartFolderCopyAiPath",
+          iconHTML: "",
+          label: "可读路径 + 文档 ID（AI 精准定位）",
+          click: () => this.copyTargets(targets, "ai"),
+        },
+        {
+          id: "smartFolderCopyHPath",
+          iconHTML: "",
+          label: "仅可读路径 (hpath)",
+          click: () => this.copyTargets(targets, "hpath"),
+        },
+        {
+          id: "smartFolderCopySyPath",
+          iconHTML: "",
+          label: "底层 .sy 数据路径",
+          click: () => this.copyTargets(targets, "sypath"),
+        },
+      ],
+    };
+
+    const rootMenu =
+      window.siyuan && window.siyuan.menus && window.siyuan.menus.menu;
+    if (rootMenu && typeof rootMenu.addItem === "function" && rootMenu.element) {
+      if (rootMenu.element.querySelector('[data-id="smartFolderCopyPath"]')) {
+        return;
+      }
+      const itemEl = rootMenu.addItem(itemOptions);
+      const reposition = () => {
+        if (!itemEl || !itemEl.isConnected) return;
+        const copyEl = rootMenu.element.querySelector(
+          '.b3-menu__items > [data-id="copy"]'
+        );
+        if (copyEl) {
+          copyEl.after(itemEl);
+          return;
+        }
+        const firstSep = rootMenu.element.querySelector(
+          ".b3-menu__items > .b3-menu__separator"
+        );
+        if (firstSep) {
+          firstSep.before(itemEl);
+        }
+      };
+      reposition();
+      queueMicrotask(reposition);
+    } else if (detailMenu && typeof detailMenu.addItem === "function") {
+      detailMenu.addItem(itemOptions);
+    }
+  }
+
+  async resolveTargets(targets) {
+    const missingDocIds = [];
+    for (const t of targets) {
+      if (t.kind === "doc") {
+        const meta = this.docMeta.get(t.id);
+        if (!meta || !meta.hpath) {
+          missingDocIds.push(t.id);
+        }
+      }
+    }
+
+    const fallbackMap = new Map();
+    if (missingDocIds.length > 0) {
+      const quoted = missingDocIds
+        .map((id) => `'${String(id).replace(/'/g, "''")}'`)
+        .join(",");
+      const stmt = `SELECT id, box, path, hpath FROM blocks WHERE id IN (${quoted}) AND type = 'd'`;
+      await new Promise((resolve) => {
+        siyuan.fetchPost("/api/query/sql", { stmt }, (res) => {
+          if (res && res.code === 0 && Array.isArray(res.data)) {
+            for (const row of res.data) {
+              fallbackMap.set(row.id, row);
+            }
+          }
+          resolve();
+        });
+      });
+    }
+
+    return targets.map((t) => {
+      if (t.kind === "notebook") {
+        const nbName = this.getNotebookName(t.notebookId) || t.name || t.notebookId;
+        return {
+          kind: "notebook",
+          id: t.notebookId,
+          notebookId: t.notebookId,
+          notebookName: nbName,
+          hpath: "/",
+          syPath: "/",
+        };
+      }
+      const meta = this.docMeta.get(t.id) || fallbackMap.get(t.id);
+      const nbId = (meta && meta.box) || t.notebookId || "";
+      const nbName = this.getNotebookName(nbId);
+      const hpath = (meta && meta.hpath) || (t.name ? `/${t.name}` : `/${t.id}`);
+      const syPath = (meta && meta.path) || t.syPath || `/${t.id}.sy`;
+      return {
+        kind: "doc",
+        id: t.id,
+        notebookId: nbId,
+        notebookName: nbName,
+        hpath,
+        syPath,
+      };
+    });
+  }
+
+  formatResolvedTarget(r, mode) {
+    const normHPath = r.hpath.startsWith("/") ? r.hpath : `/${r.hpath}`;
+    const normSyPath = r.syPath.startsWith("/") ? r.syPath : `/${r.syPath}`;
+    if (r.kind === "notebook") {
+      if (mode === "ai") return `${r.notebookName}/ (notebookId: ${r.notebookId})`;
+      if (mode === "hpath") return "/";
+      if (mode === "sypath") return `data/${r.notebookId}/`;
+      return `${r.notebookName}/`;
+    }
+    const fullReadable = r.notebookName
+      ? `${r.notebookName}${normHPath}`
+      : normHPath;
+    if (mode === "ai") return `${fullReadable} (id: ${r.id})`;
+    if (mode === "hpath") return normHPath;
+    if (mode === "sypath") {
+      return r.notebookId ? `data/${r.notebookId}${normSyPath}` : normSyPath;
+    }
+    return fullReadable;
+  }
+
+  async copyTargets(targets, mode = "full") {
+    const resolved = await this.resolveTargets(targets);
+    const lines = resolved
+      .map((r) => this.formatResolvedTarget(r, mode))
+      .filter(Boolean);
+    const text = lines.join("\n");
+    if (!text) return;
+
+    let copied = false;
+    if (
+      navigator.clipboard &&
+      typeof navigator.clipboard.writeText === "function"
+    ) {
+      try {
+        await navigator.clipboard.writeText(text);
+        copied = true;
+      } catch {
+        copied = false;
+      }
+    }
+    if (!copied) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.cssText = "position:fixed;top:-9999px;left:-9999px;opacity:0;";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        copied = document.execCommand("copy");
+      } catch {
+        copied = false;
+      }
+      ta.remove();
+    }
+
+    if (copied && typeof siyuan.showMessage === "function") {
+      const msg =
+        lines.length > 1
+          ? `已复制 ${lines.length} 个条目的路径`
+          : `已复制：${text.length > 64 ? `${text.slice(0, 61)}...` : text}`;
+      siyuan.showMessage(escapeHtml(msg), 2400, "info");
+    }
   }
 }
 

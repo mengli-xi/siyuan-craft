@@ -56,6 +56,9 @@ plugins/<plugin-name>/
    - **插件更新机制与多端同步热重载（`push_reload`）**：
      - 集市插件仅比对官方 `bazaar` 索引与 GitHub Release `package.zip`，未上架的自研插件不会自动检查 GitHub 分支更新；
      - 但思源数据同步（WebDAV/云端）会自动同步 `data/plugins/<plugin-name>/`，且思源 `3.8+` 内核 `push_reload` 在同步检测到插件文件变动后会自动热重载前端插件。多端（Windows/macOS）联调回收代码至 Git 仓库前，需先对比 `data/plugins/` 是否有更新改动并统一规整 CRLF 为 LF。
+   - **右键菜单顶层挂载与 `entryVisibility` 排序复位（思源 `3.8+`）**：
+     - `open-menu-doctree` / `click-editortitleicon` / `open-menu-breadcrumbmore` 中的 `ev.detail.menu.addItem(...)` 会被统一折叠进菜单底部的「插件 >」二级菜单；
+     - 高频菜单项若需挂载到一级主菜单（如紧跟 `[data-id="copy"]` 下方），应调用 `window.siyuan.menus.menu.addItem(opts)`，并在同步定位后配合 `queueMicrotask` 再执行一次 `copyEl.after(itemEl)`，以抵消 `menu.popup()` 内 `entryVisibility` 将未知 `data-id` 重排至末尾的行为；此外思源 `MenuItem` 支持同时传入 `click` 与 `submenu` 实现「左键默认动作 + 悬停子菜单」。
 
 ## 三、经验回写约定
 
